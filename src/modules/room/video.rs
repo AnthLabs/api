@@ -24,12 +24,14 @@ use crate::common::{
 use super::{
     dto::RoomResponse,
     model::{Room, VideoStatus},
+    websocket::{message::ServerMessage, hub::RoomHub},
 };
 
 const MAX_VIDEO_SIZE: u64 = 2 * 1024 * 1024 * 1024;
 
 pub async fn upload_video_for_room(
     room_collection: Collection<Room>,
+    room_hub: RoomHub,
     room_id: ObjectId,
     mut multipart: Multipart,
 ) -> Result<RoomResponse, AppError> {
@@ -88,31 +90,25 @@ pub async fn upload_video_for_room(
         video_id,
     );
 
-    let updated_room = match update_room_video(
-        room_collection,
+let updated_room = update_room_video(
+    room_collection,
+    room_id,
+    &video_url,
+)
+.await?;
+
+let room_response = RoomResponse::from(updated_room);
+
+room_hub
+    .broadcast(
         room_id,
-        &video_url,
+        ServerMessage::RoomUpdated {
+            room: room_response.clone(),
+        },
     )
-    .await
-    {
-        Ok(room) => room,
-        Err(error) => {
-            let _ = fs::remove_file(&upload_path).await;
-            let _ =
-                fs::remove_dir_all(&video_hls_directory).await;
+    .await;
 
-            return Err(error);
-        }
-    };
-
-    if let Err(error) = fs::remove_file(&upload_path).await {
-        eprintln!(
-            "Failed to remove uploaded source file {}: {error}",
-            upload_path.display(),
-        );
-    }
-
-    Ok(RoomResponse::from(updated_room))
+    Ok(room_response)
 }
 
 async fn ensure_room_exists(

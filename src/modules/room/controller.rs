@@ -82,6 +82,7 @@ pub async fn upload_room_video_handler(
 
     let room = upload_video_for_room(
         room_collection,
+        state.room_hub.clone(),
         room_id,
         multipart,
     )
