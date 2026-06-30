@@ -7,6 +7,7 @@ use axum::Router;
 use dotenv::dotenv;
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
+use tower_http::cors::{Any, CorsLayer};
 
 #[tokio::main]
 async fn main() {
@@ -28,9 +29,16 @@ async fn main() {
     };
 
     let health_routes = health_routes();
+
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
+
     let app = Router::new()
         .merge(health_routes)
         .merge(room_routes())
+        .layer(cors)
         .with_state(app_state.clone());
 
     let port = 3000;

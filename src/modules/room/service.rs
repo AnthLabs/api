@@ -27,8 +27,8 @@ pub async fn apply_playback_command(
 ) -> Result<RoomResponse, AppError> {
     let timestamp = unix_timestamp()?;
 
-    let timestamp = i64::try_from(timestamp)
-        .map_err(|_| AppError::internal("Timestamp is too large"))?;
+    let timestamp =
+        i64::try_from(timestamp).map_err(|_| AppError::internal("Timestamp is too large"))?;
 
     let mut update = doc! {
         "updated_at": timestamp,
@@ -39,25 +39,14 @@ pub async fn apply_playback_command(
             let video_url = video_url.trim();
 
             if video_url.is_empty() {
-                return Err(AppError::bad_request(
-                    "Video URL cannot be empty",
-                ));
+                return Err(AppError::bad_request("Video URL cannot be empty"));
             }
 
-            update.insert(
-                "video_url",
-                video_url,
-            );
+            update.insert("video_url", video_url);
 
-            update.insert(
-                "video_status",
-                serialize_video_status(VideoStatus::Paused)?,
-            );
+            update.insert("video_status", serialize_video_status(VideoStatus::Paused)?);
 
-            update.insert(
-                "position_seconds",
-                0.0,
-            );
+            update.insert("position_seconds", 0.0);
         }
 
         PlaybackCommand::Play { position_seconds } => {
@@ -68,33 +57,21 @@ pub async fn apply_playback_command(
                 serialize_video_status(VideoStatus::Playing)?,
             );
 
-            update.insert(
-                "position_seconds",
-                position_seconds,
-            );
+            update.insert("position_seconds", position_seconds);
         }
 
         PlaybackCommand::Pause { position_seconds } => {
             validate_position(position_seconds)?;
 
-            update.insert(
-                "video_status",
-                serialize_video_status(VideoStatus::Paused)?,
-            );
+            update.insert("video_status", serialize_video_status(VideoStatus::Paused)?);
 
-            update.insert(
-                "position_seconds",
-                position_seconds,
-            );
+            update.insert("position_seconds", position_seconds);
         }
 
         PlaybackCommand::Seek { position_seconds } => {
             validate_position(position_seconds)?;
 
-            update.insert(
-                "position_seconds",
-                position_seconds,
-            );
+            update.insert("position_seconds", position_seconds);
         }
     }
 
@@ -109,9 +86,7 @@ pub async fn apply_playback_command(
         )
         .return_document(ReturnDocument::After)
         .await?
-        .ok_or_else(|| {
-            AppError::not_found("Room not found")
-        })?;
+        .ok_or_else(|| AppError::not_found("Room not found"))?;
 
     Ok(RoomResponse::from(room))
 }

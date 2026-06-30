@@ -1,5 +1,3 @@
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use axum::extract::ws::{Message, WebSocket};
 use futures_util::{SinkExt, StreamExt};
 use mongodb::{Collection, bson::oid::ObjectId};
@@ -204,19 +202,6 @@ async fn apply_and_broadcast(
     }
 }
 
-async fn broadcast_error(state: &AppState, room_id: ObjectId, code: &str, message: String) {
-    state
-        .room_hub
-        .broadcast(
-            room_id,
-            ServerMessage::Error {
-                code: code.to_string(),
-                message,
-            },
-        )
-        .await;
-}
-
 async fn send_server_message<S>(sender: &mut S, message: &ServerMessage) -> Result<(), ()>
 where
     S: futures_util::Sink<Message, Error = axum::Error> + Unpin,
@@ -242,13 +227,4 @@ async fn send_initial_error(mut socket: WebSocket, code: &str, message: String) 
     let _ = socket.send(Message::Text(serialized.into())).await;
 
     let _ = socket.close().await;
-}
-
-fn unix_timestamp_millis() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis()
-        .try_into()
-        .unwrap_or(u64::MAX)
 }
