@@ -2,6 +2,7 @@ use mongodb::bson::oid::ObjectId;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "snake_case")]
 pub enum VideoStatus {
     Paused,
     Playing,

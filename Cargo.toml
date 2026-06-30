@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-axum = { version = "0.8.9", features = ["ws"] }
+axum = { version = "0.8.9", features = ["ws", "multipart"] }
 tokio = { version = "1.52.3", features = ["full"] }
 dotenv = "0.15"
 serde = { version = "1.0.147", features = ["derive"] }
@@ -12,3 +12,4 @@ serde_json = "1.0.133"
 mongodb = "3.1.1"
 futures-util = "0.3"
 tower-http = { version = "0.7", features = ["cors"] }
+uuid = { version = "1", features = ["v4"] }

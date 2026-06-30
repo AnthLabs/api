@@ -7,17 +7,20 @@ COPY src ./src
 
 RUN cargo build --release
 
+FROM debian:bookworm-slim
 
-FROM debian:bookworm-slim AS runtime
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ffmpeg \
+        ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /app/target/release/api /usr/local/bin/api
 
-COPY --from=builder /app/target/release/api /app/api
+RUN mkdir -p /media/uploads /media/hls
 
 EXPOSE 3000
 
-CMD ["/app/api"]
+CMD ["api"]

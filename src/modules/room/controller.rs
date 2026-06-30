@@ -1,7 +1,9 @@
 use axum::extract::ws::WebSocketUpgrade;
-use axum::extract::{Path, State};
+use axum::extract::{Path, State, Multipart};
 use mongodb::bson::oid::ObjectId;
+use axum::Json;
 
+use crate::modules::room::video::upload_video_for_room;
 use crate::modules::room::websocket::handler::handle_room_socket;
 use crate::{
     common::{
@@ -63,4 +65,27 @@ pub async fn room_websocket_handler(
     service::get_room(room_collection, room_id).await?;
 
     Ok(websocket.on_upgrade(move |socket| handle_room_socket(socket, state, room_id)))
+}
+
+pub async fn upload_room_video_handler(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    multipart: Multipart,
+) -> Result<Json<RoomResponse>, AppError> {
+    let room_id = ObjectId::parse_str(&id)
+        .map_err(|_| {
+            AppError::bad_request("Invalid room id")
+        })?;
+
+    let room_collection =
+        state.database.collection::<Room>("room");
+
+    let room = upload_video_for_room(
+        room_collection,
+        room_id,
+        multipart,
+    )
+    .await?;
+
+    Ok(Json(room))
 }

@@ -86,7 +86,11 @@ impl IntoResponse for AppError {
 }
 
 impl From<MongoError> for AppError {
-    fn from(_: MongoError) -> Self {
-        AppError::database_error()
+    fn from(error: MongoError) -> Self {
+        eprintln!("MongoDB error: {error:#?}");
+
+        AppError::internal(format!(
+            "Database error: {error}"
+        ))
     }
 }
