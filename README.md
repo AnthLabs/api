@@ -27,3 +27,8 @@ Lint the code:
 ```bash
 cargo clippy
 ```
+
+Run through Docker
+```bash
+docker-compose up --build -d
+```
