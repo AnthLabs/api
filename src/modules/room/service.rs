@@ -1,4 +1,5 @@
 use crate::common::error::AppError;
+use std::time::{SystemTime,UNIX_EPOCH};
 
 use mongodb::{
     Collection,
@@ -9,25 +10,10 @@ use mongodb::{
 use super::{
     dto::{
         RoomDeleteResponse,
-        RoomListResponse,
         RoomResponse,
     },
-    model::Room,
+    model::{Room, VideoStatus},
 };
-
-pub async fn get_all_room(
-    room_collection: Collection<Room>,
-) -> Result<RoomListResponse, AppError> {
-    let mut cursor = room_collection.find(doc! {}).await?;
-    let mut results = Vec::new();
-
-    while cursor.advance().await? {
-        let room = cursor.deserialize_current()?;
-        results.push(room);
-    }
-
-    Ok(RoomListResponse::from(results))
-}
 
 pub async fn get_room(
     room_collection: Collection<Room>,
@@ -47,9 +33,16 @@ pub async fn get_room(
 
 pub async fn create_room(
     room_collection: Collection<Room>,
-    room: Room,
 ) -> Result<RoomResponse, AppError> {
-    let id = room.id;
+    let id_room = ObjectId::new();
+    let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).expect("time should go forward").as_secs();
+    let room = Room {
+        id: id_room,
+        video_url: None,
+        video_status: VideoStatus::Paused,
+        position_second: 0,
+        created_at: timestamp 
+    };
 
     room_collection
         .insert_one(&room)
@@ -57,7 +50,7 @@ pub async fn create_room(
 
     let created_room = room_collection
         .find_one(doc! {
-            "_id": id,
+            "_id": id_room,
         })
         .await?
         .ok_or_else(|| {

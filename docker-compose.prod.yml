@@ -1,0 +1,39 @@
+services:
+  mongodb:
+    image: mongo:7
+    container_name: api-mongodb
+    restart: unless-stopped
+
+    volumes:
+      - mongodb_data:/data/db
+
+    networks:
+      - api-network
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: my-api
+    restart: unless-stopped
+
+    environment:
+      PORT: 3000
+      MONGO_URI: mongodb://mongodb:27017/umdr
+
+    ports:
+      - "3000:3000"
+
+    depends_on:
+      - mongodb
+
+    networks:
+      - api-network
+
+volumes:
+  mongodb_data:
+
+networks:
+  api-network:
+    driver: bridge

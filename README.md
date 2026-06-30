@@ -28,7 +28,12 @@ Lint the code:
 cargo clippy
 ```
 
-Run through Docker
+Run mongodb
 ```bash
-docker-compose up --build -d
+docker compose -f docker-compose.yml up -d --build
+```
+
+Run project
+```bash
+docker compose -f docker-compose.prod.yml up -d --build
 ```

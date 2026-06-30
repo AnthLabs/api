@@ -1,32 +1,17 @@
 services:
-  mongo:
+  mongodb:
     image: mongo:7
-    container_name: api-mongo
+    container_name: api-mongodb
     restart: unless-stopped
-    volumes:
-      - mongo_data:/data/db
-    networks:
-      - backend
 
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: anth-api
-    container_name: anth-api
-    restart: unless-stopped
-    depends_on:
-      - mongo
+    ports:
+      - "27017:27017"
+
     environment:
       MONGO_URI: ${MONGO_URI}
-      RUST_LOG: info
-    ports:
-      - "3000:3000"
-    networks:
-      - backend
+
+    volumes:
+      - mongodb_data:/data/db
 
 volumes:
-  mongo_data:
-
-networks:
-  backend:
+  mongodb_data:

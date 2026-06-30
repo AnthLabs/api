@@ -6,17 +6,15 @@ use axum::{
 use crate::{
     modules::room::controller::{
         create_room_handler,
+        update_room_handler,
         delete_room_handler,
         get_room_handler,
-        get_all_room_handler,
-        update_room_handler,
     },
     state::AppState,
 };
 
 pub fn room_routes() -> Router<AppState> {
     let routes = Router::new()
-        .route("/", get(get_all_room_handler))
         .route("/{id}", get(get_room_handler))
         .route("/", post(create_room_handler))
         .route("/{id}", patch(update_room_handler))

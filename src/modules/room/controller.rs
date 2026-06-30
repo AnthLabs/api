@@ -15,25 +15,11 @@ use crate::{
 use super::{
     dto::{
         RoomDeleteResponse,
-        RoomListResponse,
         RoomResponse,
     },
     model::Room,
     service,
 };
-
-pub async fn get_all_room_handler(
-    State(state): State<AppState>,
-) -> AppResult<RoomListResponse> {
-    let room_collection = state
-        .database
-        .collection::<Room>("room");
-
-    let response =
-        service::get_all_room(room_collection).await?;
-
-    Ok(ApiResponse::success(response))
-}
 
 pub async fn get_room_handler(
     State(state): State<AppState>,
@@ -53,7 +39,6 @@ pub async fn get_room_handler(
 
 pub async fn create_room_handler(
     State(state): State<AppState>,
-    Json(room): Json<Room>,
 ) -> AppResult<RoomResponse> {
     let room_collection = state
         .database
@@ -61,7 +46,6 @@ pub async fn create_room_handler(
 
     let response = service::create_room(
         room_collection,
-        room,
     )
     .await?;
 
