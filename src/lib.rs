@@ -1,4 +1,4 @@
 pub mod common;
-mod modules;
+pub mod modules;
 pub mod routes;
 pub mod state;

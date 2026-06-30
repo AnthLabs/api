@@ -37,3 +37,36 @@ Run project
 ```bash
 docker compose -f docker-compose.prod.yml up -d --build
 ```
+
+## Websocket message
+change video url:
+```bash
+{
+  "type": "change_video",
+  "video_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+}
+```
+
+play:
+```bash
+{
+  "type": "play",
+  "position_seconds": 0.0
+}
+```
+
+pause:
+```bash
+{
+  "type": "pause",
+  "position_seconds": 15.8
+}
+```
+
+seek:
+```bash
+{
+  "type": "seek",
+  "position_seconds": 120.0
+}
+```

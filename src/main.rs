@@ -1,8 +1,6 @@
 use api::{
-    routes::{
-        health::health_routes,
-        room::room_routes,
-    },
+    modules::room::websocket::hub::RoomHub,
+    routes::{health::health_routes, room::room_routes},
     state::{AppState, SecretStore},
 };
 use axum::Router;
@@ -25,6 +23,7 @@ async fn main() {
     let app_state = AppState {
         secret_store,
         database,
+        room_hub: RoomHub::new(),
         started_at: std::time::Instant::now(),
     };
 
