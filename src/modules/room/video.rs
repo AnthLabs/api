@@ -16,7 +16,10 @@ use tokio::{
 };
 use uuid::Uuid;
 
-use crate::common::error::AppError;
+use crate::common::{
+    error::AppError,
+    media::{hls_directory, uploads_directory},
+};
 
 use super::{
     dto::RoomResponse,
@@ -34,18 +37,11 @@ pub async fn upload_video_for_room(
 
     let video_id = Uuid::new_v4().to_string();
 
-    let upload_directory = std::env::var("UPLOAD_DIRECTORY")
-        .unwrap_or_else(|_| "./media/uploads".to_string());
+    let uploads_path = uploads_directory();
+    let hls_path = hls_directory();
+    let public_media_url = public_media_url();
 
-    let hls_directory = std::env::var("HLS_DIRECTORY")
-        .unwrap_or_else(|_| "./media/hls".to_string());
-
-    let public_hls_url = std::env::var("PUBLIC_HLS_URL")
-        .unwrap_or_else(|_| {
-            "http://localhost:8080/media".to_string()
-        });
-
-    fs::create_dir_all(&upload_directory)
+    fs::create_dir_all(&uploads_path)
         .await
         .map_err(|error| {
             eprintln!("Failed to create upload directory: {error}");
@@ -55,8 +51,7 @@ pub async fn upload_video_for_room(
             )
         })?;
 
-    let video_hls_directory =
-        Path::new(&hls_directory).join(&video_id);
+    let video_hls_directory = hls_path.join(&video_id);
 
     fs::create_dir_all(&video_hls_directory)
         .await
@@ -70,31 +65,46 @@ pub async fn upload_video_for_room(
 
     let upload_path = save_uploaded_video(
         &mut multipart,
-        Path::new(&upload_directory),
+        &uploads_path,
         &video_id,
     )
     .await?;
 
-    convert_video_to_hls(
+    if let Err(error) = convert_video_to_hls(
         &upload_path,
         &video_hls_directory,
     )
-    .await?;
+    .await
+    {
+        let _ = fs::remove_file(&upload_path).await;
+        let _ = fs::remove_dir_all(&video_hls_directory).await;
+
+        return Err(error);
+    }
 
     let video_url = format!(
-        "{}/{}/index.m3u8",
-        public_hls_url.trim_end_matches('/'),
+        "{}/hls/{}/index.m3u8",
+        public_media_url.trim_end_matches('/'),
         video_id,
     );
 
-    let updated_room = update_room_video(
+    let updated_room = match update_room_video(
         room_collection,
         room_id,
         &video_url,
     )
-    .await?;
+    .await
+    {
+        Ok(room) => room,
+        Err(error) => {
+            let _ = fs::remove_file(&upload_path).await;
+            let _ =
+                fs::remove_dir_all(&video_hls_directory).await;
 
-    // Facultatif : supprimer le fichier source après conversion.
+            return Err(error);
+        }
+    };
+
     if let Err(error) = fs::remove_file(&upload_path).await {
         eprintln!(
             "Failed to remove uploaded source file {}: {error}",
@@ -188,9 +198,17 @@ async fn save_uploaded_video(
                 )
             })?
         {
-            total_size += chunk.len() as u64;
+            total_size = total_size
+                .checked_add(chunk.len() as u64)
+                .ok_or_else(|| {
+                    AppError::bad_request(
+                        "Uploaded video is too large",
+                    )
+                })?;
 
             if total_size > MAX_VIDEO_SIZE {
+                drop(file);
+
                 let _ = fs::remove_file(&upload_path).await;
 
                 return Err(AppError::bad_request(
@@ -212,6 +230,8 @@ async fn save_uploaded_video(
         }
 
         if total_size == 0 {
+            drop(file);
+
             let _ = fs::remove_file(&upload_path).await;
 
             return Err(AppError::bad_request(
@@ -290,7 +310,8 @@ async fn convert_video_to_hls(
 
         eprintln!("FFmpeg conversion failed:\n{stderr}");
 
-        let _ = fs::remove_dir_all(output_directory).await;
+        let _ =
+            fs::remove_dir_all(output_directory).await;
 
         return Err(AppError::internal(
             "Video conversion failed",
@@ -327,6 +348,13 @@ async fn update_room_video(
         .await?
         .ok_or_else(|| {
             AppError::not_found("Room not found")
+        })
+}
+
+fn public_media_url() -> String {
+    std::env::var("PUBLIC_MEDIA_URL")
+        .unwrap_or_else(|_| {
+            "http://localhost:8080/media".to_string()
         })
 }
 

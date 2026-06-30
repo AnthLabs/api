@@ -19,8 +19,6 @@ WORKDIR /app
 
 COPY --from=builder /app/target/release/api /usr/local/bin/api
 
-RUN mkdir -p /media/uploads /media/hls
-
 EXPOSE 3000
 
 CMD ["api"]
