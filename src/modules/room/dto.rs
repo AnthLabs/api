@@ -1,16 +1,16 @@
 use serde::Serialize;
 
-use super::model::Rooms;
+use super::model::Room;
 
 #[derive(Debug, Serialize)]
-pub struct RoomsResponse {
+pub struct RoomResponse {
     pub id: String,
     pub created_at: i64,
     pub updated_at: Option<i64>,
 }
 
-impl From<Rooms> for RoomsResponse {
-    fn from(value: Rooms) -> Self {
+impl From<Room> for RoomResponse {
+    fn from(value: Room) -> Self {
         Self {
             id: value.id.to_hex(),
             created_at: value.created_at,
@@ -20,19 +20,19 @@ impl From<Rooms> for RoomsResponse {
 }
 
 #[derive(Debug, Serialize)]
-pub struct RoomsListResponse {
-    pub rooms_list: Vec<RoomsResponse>,
+pub struct RoomListResponse {
+    pub room_list: Vec<RoomResponse>,
     pub total: usize,
 }
 
-impl From<Vec<Rooms>> for RoomsListResponse {
-    fn from(values: Vec<Rooms>) -> Self {
+impl From<Vec<Room>> for RoomListResponse {
+    fn from(values: Vec<Room>) -> Self {
         let total = values.len();
 
         Self {
-            rooms_list: values
+            room_list: values
                 .into_iter()
-                .map(RoomsResponse::from)
+                .map(RoomResponse::from)
                 .collect(),
             total,
         }
@@ -40,6 +40,6 @@ impl From<Vec<Rooms>> for RoomsListResponse {
 }
 
 #[derive(Debug, Serialize)]
-pub struct RoomsDeleteResponse {
+pub struct RoomDeleteResponse {
     pub id: String,
 }

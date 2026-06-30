@@ -1,7 +1,7 @@
 use api::{
     routes::{
         health::health_routes,
-        rooms::rooms_routes,
+        room::room_routes,
     },
     state::{AppState, SecretStore},
 };
@@ -31,7 +31,7 @@ async fn main() {
     let health_routes = health_routes();
     let app = Router::new()
         .merge(health_routes)
-        .merge(rooms_routes())
+        .merge(room_routes())
         .with_state(app_state.clone());
 
     let port = 3000;

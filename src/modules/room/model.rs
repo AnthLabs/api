@@ -2,7 +2,7 @@ use mongodb::bson::oid::ObjectId;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone)]
-pub struct Rooms {
+pub struct Room {
  #[serde(rename = "_id")]
     pub id: ObjectId,
     pub created_at: i64,
