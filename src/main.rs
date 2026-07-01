@@ -43,11 +43,20 @@ async fn main() {
         .layer(cors)
         .with_state(app_state.clone());
 
-    let port = 3000;
+    // let port = 3000;
+
+    let port: u16 = std::env::var("PORT")
+        .unwrap_or_else(|_| "3000".to_string())
+        .parse()
+        .expect("PORT must be a valid u16");
+    
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
 
     let listener = TcpListener::bind(addr).await.unwrap();
 
-    println!("API running on: http://localhost:{}/", port);
+    // println!("API running on: http://localhost:{}/", port);
+
+    println!("API running on port {}", port);
+
     axum::serve(listener, app).await.unwrap();
 }
