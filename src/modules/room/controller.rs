@@ -1,7 +1,7 @@
-use axum::extract::ws::WebSocketUpgrade;
-use axum::extract::{Path, State, Multipart};
-use mongodb::bson::oid::ObjectId;
 use axum::Json;
+use axum::extract::ws::WebSocketUpgrade;
+use axum::extract::{Multipart, Path, State};
+use mongodb::bson::oid::ObjectId;
 
 use crate::modules::room::video::upload_video_for_room;
 use crate::modules::room::websocket::handler::handle_room_socket;
@@ -36,18 +36,11 @@ pub async fn create_room_handler(State(state): State<AppState>) -> AppResult<Roo
     let room_collection = state.database.collection::<Room>("room");
 
     let response = service::create_room(room_collection).await?;
-    
+
     let room_id = ObjectId::parse_str(&response.id)
-        .map_err(|_| {
-            AppError::internal(
-                "Created room has an invalid id",
-            )
-        })?;
-    
-    state
-        .room_logger
-        .log_room_created(room_id)
-        .await?;
+        .map_err(|_| AppError::internal("Created room has an invalid id"))?;
+
+    state.room_logger.log_room_created(room_id).await?;
 
     Ok(ApiResponse::success(response))
 }
@@ -84,26 +77,14 @@ pub async fn upload_room_video_handler(
     Path(id): Path<String>,
     multipart: Multipart,
 ) -> Result<Json<RoomResponse>, AppError> {
-    let room_id = ObjectId::parse_str(&id)
-        .map_err(|_| {
-            AppError::bad_request("Invalid room id")
-        })?;
+    let room_id = ObjectId::parse_str(&id).map_err(|_| AppError::bad_request("Invalid room id"))?;
 
-    let room_collection =
-        state.database.collection::<Room>("room");
+    let room_collection = state.database.collection::<Room>("room");
 
-    let room = upload_video_for_room(
-        room_collection,
-        state.room_hub.clone(),
-        room_id,
-        multipart,
-    )
-    .await?;
-    
-    state
-        .room_logger
-        .log_video_uploaded(room_id)
-        .await?;
+    let room =
+        upload_video_for_room(room_collection, state.room_hub.clone(), room_id, multipart).await?;
+
+    state.room_logger.log_video_uploaded(room_id).await?;
 
     Ok(Json(room))
 }

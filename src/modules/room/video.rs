@@ -13,11 +13,7 @@ use mongodb::{
 };
 use serde_json::json;
 use sha2::Sha256;
-use tokio::{
-    fs,
-    io::AsyncWriteExt,
-    process::Command,
-};
+use tokio::{fs, io::AsyncWriteExt, process::Command};
 use uuid::Uuid;
 
 use crate::common::{
@@ -28,7 +24,7 @@ use crate::common::{
 use super::{
     dto::RoomResponse,
     model::{Room, VideoStatus},
-    websocket::{message::ServerMessage, hub::RoomHub},
+    websocket::{hub::RoomHub, message::ServerMessage},
 };
 
 const MAX_VIDEO_SIZE: u64 = 2 * 1024 * 1024 * 1024;
@@ -49,25 +45,17 @@ pub async fn upload_video_for_room(
     let keys_path = keys_directory();
     let public_media_url = public_media_url();
 
-    fs::create_dir_all(&uploads_path)
-        .await
-        .map_err(|error| {
-            eprintln!("Failed to create upload directory: {error}");
+    fs::create_dir_all(&uploads_path).await.map_err(|error| {
+        eprintln!("Failed to create upload directory: {error}");
 
-            AppError::internal(
-                "Failed to create upload directory",
-            )
-        })?;
+        AppError::internal("Failed to create upload directory")
+    })?;
 
-    fs::create_dir_all(&keys_path)
-        .await
-        .map_err(|error| {
-            eprintln!("Failed to create key directory: {error}");
+    fs::create_dir_all(&keys_path).await.map_err(|error| {
+        eprintln!("Failed to create key directory: {error}");
 
-            AppError::internal(
-                "Failed to create key directory",
-            )
-        })?;
+        AppError::internal("Failed to create key directory")
+    })?;
 
     let video_hls_directory = hls_path.join(&video_id);
 
@@ -76,9 +64,7 @@ pub async fn upload_video_for_room(
         .map_err(|error| {
             eprintln!("Failed to create HLS directory: {error}");
 
-            AppError::internal(
-                "Failed to create HLS directory",
-            )
+            AppError::internal("Failed to create HLS directory")
         })?;
 
     let upload_path = save_uploaded_video(&mut multipart, &uploads_path, &video_id).await?;
@@ -138,17 +124,11 @@ async fn save_uploaded_video(
     upload_directory: &Path,
     video_id: &str,
 ) -> Result<PathBuf, AppError> {
-    while let Some(mut field) = multipart
-        .next_field()
-        .await
-        .map_err(|error| {
-            eprintln!("Invalid multipart request: {error}");
+    while let Some(mut field) = multipart.next_field().await.map_err(|error| {
+        eprintln!("Invalid multipart request: {error}");
 
-            AppError::bad_request(
-                "Invalid multipart request",
-            )
-        })?
-    {
+        AppError::bad_request("Invalid multipart request")
+    })? {
         if field.name() != Some("video") {
             continue;
         }
@@ -159,74 +139,43 @@ async fn save_uploaded_video(
             .to_string();
 
         if !is_supported_video_type(&content_type) {
-            return Err(AppError::bad_request(
-                "Unsupported video format",
-            ));
+            return Err(AppError::bad_request("Unsupported video format"));
         }
 
-        let extension =
-            extension_from_content_type(&content_type);
+        let extension = extension_from_content_type(&content_type);
 
-        let upload_path = upload_directory.join(
-            format!("{video_id}.{extension}"),
-        );
+        let upload_path = upload_directory.join(format!("{video_id}.{extension}"));
 
-        let mut file = fs::File::create(&upload_path)
-            .await
-            .map_err(|error| {
-                eprintln!(
-                    "Failed to create upload file: {error}"
-                );
+        let mut file = fs::File::create(&upload_path).await.map_err(|error| {
+            eprintln!("Failed to create upload file: {error}");
 
-                AppError::internal(
-                    "Failed to save uploaded video",
-                )
-            })?;
+            AppError::internal("Failed to save uploaded video")
+        })?;
 
         let mut total_size = 0_u64;
 
-        while let Some(chunk) = field
-            .chunk()
-            .await
-            .map_err(|error| {
-                eprintln!(
-                    "Failed to read upload chunk: {error}"
-                );
+        while let Some(chunk) = field.chunk().await.map_err(|error| {
+            eprintln!("Failed to read upload chunk: {error}");
 
-                AppError::bad_request(
-                    "Failed to read uploaded video",
-                )
-            })?
-        {
+            AppError::bad_request("Failed to read uploaded video")
+        })? {
             total_size = total_size
                 .checked_add(chunk.len() as u64)
-                .ok_or_else(|| {
-                    AppError::bad_request(
-                        "Uploaded video is too large",
-                    )
-                })?;
+                .ok_or_else(|| AppError::bad_request("Uploaded video is too large"))?;
 
             if total_size > MAX_VIDEO_SIZE {
                 drop(file);
 
                 let _ = fs::remove_file(&upload_path).await;
 
-                return Err(AppError::bad_request(
-                    "Uploaded video is too large",
-                ));
+                return Err(AppError::bad_request("Uploaded video is too large"));
             }
 
-            file.write_all(&chunk)
-                .await
-                .map_err(|error| {
-                    eprintln!(
-                        "Failed to write upload chunk: {error}"
-                    );
+            file.write_all(&chunk).await.map_err(|error| {
+                eprintln!("Failed to write upload chunk: {error}");
 
-                    AppError::internal(
-                        "Failed to save uploaded video",
-                    )
-                })?;
+                AppError::internal("Failed to save uploaded video")
+            })?;
         }
 
         if total_size == 0 {
@@ -234,29 +183,19 @@ async fn save_uploaded_video(
 
             let _ = fs::remove_file(&upload_path).await;
 
-            return Err(AppError::bad_request(
-                "Uploaded video is empty",
-            ));
+            return Err(AppError::bad_request("Uploaded video is empty"));
         }
 
-        file.flush()
-            .await
-            .map_err(|error| {
-                eprintln!(
-                    "Failed to flush upload file: {error}"
-                );
+        file.flush().await.map_err(|error| {
+            eprintln!("Failed to flush upload file: {error}");
 
-                AppError::internal(
-                    "Failed to save uploaded video",
-                )
-            })?;
+            AppError::internal("Failed to save uploaded video")
+        })?;
 
         return Ok(upload_path);
     }
 
-    Err(AppError::bad_request(
-        "Missing multipart field 'video'",
-    ))
+    Err(AppError::bad_request("Missing multipart field 'video'"))
 }
 
 async fn convert_video_to_hls(
@@ -265,17 +204,13 @@ async fn convert_video_to_hls(
     key_directory: &Path,
     asset_id: &str,
 ) -> Result<(), AppError> {
-    let playlist_path =
-        output_directory.join("master.m3u8");
+    let playlist_path = output_directory.join("master.m3u8");
 
-    let segment_path =
-        output_directory.join("segment_%05d.ts");
+    let segment_path = output_directory.join("segment_%05d.ts");
 
-    let key_file_path =
-        key_directory.join(format!("{asset_id}.key"));
+    let key_file_path = key_directory.join(format!("{asset_id}.key"));
 
-    let key_info_path =
-        key_directory.join(format!("{asset_id}.keyinfo.tmp"));
+    let key_info_path = key_directory.join(format!("{asset_id}.keyinfo.tmp"));
 
     let aes_key = random_bytes();
     let iv = hex_encode(&random_bytes());
@@ -287,28 +222,21 @@ async fn convert_video_to_hls(
         token,
     );
 
-    fs::write(&key_file_path, &aes_key)
-        .await
-        .map_err(|error| {
-            eprintln!("Failed to write HLS key: {error}");
+    fs::write(&key_file_path, &aes_key).await.map_err(|error| {
+        eprintln!("Failed to write HLS key: {error}");
 
-            AppError::internal("Failed to write HLS key")
-        })?;
+        AppError::internal("Failed to write HLS key")
+    })?;
 
-    let key_info = format!(
-        "{key_uri}\n{}\n{iv}\n",
-        key_file_path.display(),
-    );
+    let key_info = format!("{key_uri}\n{}\n{iv}\n", key_file_path.display(),);
 
-    fs::write(&key_info_path, key_info)
-        .await
-        .map_err(|error| {
-            eprintln!("Failed to write FFmpeg key info file: {error}");
+    fs::write(&key_info_path, key_info).await.map_err(|error| {
+        eprintln!("Failed to write FFmpeg key info file: {error}");
 
-            let _ = std::fs::remove_file(&key_file_path);
+        let _ = std::fs::remove_file(&key_file_path);
 
-            AppError::internal("Failed to prepare encrypted HLS conversion")
-        })?;
+        AppError::internal("Failed to prepare encrypted HLS conversion")
+    })?;
 
     let output_result = Command::new("ffmpeg")
         .arg("-y")
@@ -349,25 +277,19 @@ async fn convert_video_to_hls(
 
             let _ = fs::remove_file(&key_file_path).await;
 
-            return Err(AppError::internal(
-                "Failed to start video conversion",
-            ));
+            return Err(AppError::internal("Failed to start video conversion"));
         }
     };
 
     if !output.status.success() {
-        let stderr =
-            String::from_utf8_lossy(&output.stderr);
+        let stderr = String::from_utf8_lossy(&output.stderr);
 
         eprintln!("FFmpeg conversion failed:\n{stderr}");
 
-        let _ =
-            fs::remove_dir_all(output_directory).await;
+        let _ = fs::remove_dir_all(output_directory).await;
         let _ = fs::remove_file(&key_file_path).await;
 
-        return Err(AppError::internal(
-            "Video conversion failed",
-        ));
+        return Err(AppError::internal("Video conversion failed"));
     }
 
     Ok(())
@@ -398,21 +320,15 @@ async fn update_room_video(
         )
         .return_document(ReturnDocument::After)
         .await?
-        .ok_or_else(|| {
-            AppError::not_found("Room not found")
-        })
+        .ok_or_else(|| AppError::not_found("Room not found"))
 }
 
 fn public_media_url() -> String {
-    std::env::var("PUBLIC_MEDIA_URL")
-        .unwrap_or_else(|_| {
-            "http://localhost:8080/media".to_string()
-        })
+    std::env::var("PUBLIC_MEDIA_URL").unwrap_or_else(|_| "http://localhost:8080/media".to_string())
 }
 
 fn key_server_public_url() -> String {
-    std::env::var("KEY_SERVER_PUBLIC_URL")
-        .unwrap_or_else(|_| "http://localhost:8090".to_string())
+    std::env::var("KEY_SERVER_PUBLIC_URL").unwrap_or_else(|_| "http://localhost:8090".to_string())
 }
 
 fn key_token_secret() -> String {
@@ -467,27 +383,17 @@ fn unix_timestamp() -> Result<i64, AppError> {
 
     let seconds = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map_err(|_| {
-            AppError::internal("Invalid system time")
-        })?
+        .map_err(|_| AppError::internal("Invalid system time"))?
         .as_secs();
 
-    i64::try_from(seconds).map_err(|_| {
-        AppError::internal("Timestamp is too large")
-    })
+    i64::try_from(seconds).map_err(|_| AppError::internal("Timestamp is too large"))
 }
 
-fn serialize_video_status(
-    status: VideoStatus,
-) -> Result<mongodb::bson::Bson, AppError> {
+fn serialize_video_status(status: VideoStatus) -> Result<mongodb::bson::Bson, AppError> {
     mongodb::bson::to_bson(&status).map_err(|error| {
-        eprintln!(
-            "Failed to serialize video status: {error}"
-        );
+        eprintln!("Failed to serialize video status: {error}");
 
-        AppError::internal(
-            "Failed to serialize video status",
-        )
+        AppError::internal("Failed to serialize video status")
     })
 }
 
@@ -502,9 +408,7 @@ fn is_supported_video_type(content_type: &str) -> bool {
     )
 }
 
-fn extension_from_content_type(
-    content_type: &str,
-) -> &'static str {
+fn extension_from_content_type(content_type: &str) -> &'static str {
     match content_type {
         "video/webm" => "webm",
         "video/quicktime" => "mov",

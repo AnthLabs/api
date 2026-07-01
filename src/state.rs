@@ -6,7 +6,7 @@ pub struct AppState {
     pub secret_store: SecretStore,
     pub started_at: std::time::Instant,
     pub room_hub: RoomHub,
-    pub room_logger: RoomLogger
+    pub room_logger: RoomLogger,
 }
 
 #[derive(Clone)]

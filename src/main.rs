@@ -1,5 +1,8 @@
 use api::{
-    common::room_log::RoomLogger, modules::room::websocket::hub::RoomHub, routes::{health::health_routes, room::room_routes}, state::{AppState, SecretStore}
+    common::room_log::RoomLogger,
+    modules::room::websocket::hub::RoomHub,
+    routes::{health::health_routes, room::room_routes},
+    state::{AppState, SecretStore},
 };
 use axum::Router;
 use dotenv::dotenv;
