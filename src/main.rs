@@ -58,7 +58,7 @@ async fn main() {
         .unwrap_or_else(|_| "3000".to_string())
         .parse()
         .expect("PORT must be a valid u16");
-    
+
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
 
     let listener = TcpListener::bind(addr).await.unwrap();
