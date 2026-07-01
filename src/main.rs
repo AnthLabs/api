@@ -9,6 +9,7 @@ use dotenv::dotenv;
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
 use tower_http::cors::{Any, CorsLayer};
+use tower_http::services::ServeDir;
 
 #[tokio::main]
 async fn main() {
@@ -37,13 +38,20 @@ async fn main() {
         .allow_methods(Any)
         .allow_headers(Any);
 
+    // let app = Router::new()
+    //     .merge(health_routes)
+    //     .merge(room_routes())
+    //     .layer(cors)
+    //     .with_state(app_state.clone());
+
+    // let port = 3000;
+
     let app = Router::new()
         .merge(health_routes)
         .merge(room_routes())
+        .nest_service("/media/hls", ServeDir::new("/app/media/hls"))
         .layer(cors)
         .with_state(app_state.clone());
-
-    // let port = 3000;
 
     let port: u16 = std::env::var("PORT")
         .unwrap_or_else(|_| "3000".to_string())
