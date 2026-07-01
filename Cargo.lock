@@ -20,11 +20,15 @@ name = "api"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "base64",
  "dotenv",
  "futures-util",
+ "hmac",
  "mongodb",
+ "rand 0.9.4",
  "serde",
  "serde_json",
+ "sha2",
  "tokio",
  "tower-http",
  "uuid",

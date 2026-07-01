@@ -4,11 +4,15 @@ use std::{
 };
 
 use axum::extract::Multipart;
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use hmac::{Hmac, Mac};
 use mongodb::{
     Collection,
     bson::{doc, oid::ObjectId},
     options::ReturnDocument,
 };
+use serde_json::json;
+use sha2::Sha256;
 use tokio::{
     fs,
     io::AsyncWriteExt,
@@ -18,7 +22,7 @@ use uuid::Uuid;
 
 use crate::common::{
     error::AppError,
-    media::{hls_directory, uploads_directory},
+    media::{hls_directory, keys_directory, uploads_directory},
 };
 
 use super::{
@@ -28,6 +32,7 @@ use super::{
 };
 
 const MAX_VIDEO_SIZE: u64 = 2 * 1024 * 1024 * 1024;
+type HmacSha256 = Hmac<Sha256>;
 
 pub async fn upload_video_for_room(
     room_collection: Collection<Room>,
@@ -41,6 +46,7 @@ pub async fn upload_video_for_room(
 
     let uploads_path = uploads_directory();
     let hls_path = hls_directory();
+    let keys_path = keys_directory();
     let public_media_url = public_media_url();
 
     fs::create_dir_all(&uploads_path)
@@ -50,6 +56,16 @@ pub async fn upload_video_for_room(
 
             AppError::internal(
                 "Failed to create upload directory",
+            )
+        })?;
+
+    fs::create_dir_all(&keys_path)
+        .await
+        .map_err(|error| {
+            eprintln!("Failed to create key directory: {error}");
+
+            AppError::internal(
+                "Failed to create key directory",
             )
         })?;
 
@@ -65,48 +81,36 @@ pub async fn upload_video_for_room(
             )
         })?;
 
-    let upload_path = save_uploaded_video(
-        &mut multipart,
-        &uploads_path,
-        &video_id,
-    )
-    .await?;
+    let upload_path = save_uploaded_video(&mut multipart, &uploads_path, &video_id).await?;
 
-    if let Err(error) = convert_video_to_hls(
-        &upload_path,
-        &video_hls_directory,
-    )
-    .await
+    if let Err(error) =
+        convert_video_to_hls(&upload_path, &video_hls_directory, &keys_path, &video_id).await
     {
         let _ = fs::remove_file(&upload_path).await;
         let _ = fs::remove_dir_all(&video_hls_directory).await;
+        let _ = fs::remove_file(keys_path.join(format!("{video_id}.key"))).await;
 
         return Err(error);
     }
 
     let video_url = format!(
-        "{}/hls/{}/index.m3u8",
+        "{}/hls/{}/master.m3u8",
         public_media_url.trim_end_matches('/'),
         video_id,
     );
 
-let updated_room = update_room_video(
-    room_collection,
-    room_id,
-    &video_url,
-)
-.await?;
+    let updated_room = update_room_video(room_collection, room_id, &video_url).await?;
 
-let room_response = RoomResponse::from(updated_room);
+    let room_response = RoomResponse::from(updated_room);
 
-room_hub
-    .broadcast(
-        room_id,
-        ServerMessage::RoomUpdated {
-            room: room_response.clone(),
-        },
-    )
-    .await;
+    room_hub
+        .broadcast(
+            room_id,
+            ServerMessage::RoomUpdated {
+                room: room_response.clone(),
+            },
+        )
+        .await;
 
     Ok(room_response)
 }
@@ -258,14 +262,55 @@ async fn save_uploaded_video(
 async fn convert_video_to_hls(
     input_path: &Path,
     output_directory: &Path,
+    key_directory: &Path,
+    asset_id: &str,
 ) -> Result<(), AppError> {
     let playlist_path =
-        output_directory.join("index.m3u8");
+        output_directory.join("master.m3u8");
 
     let segment_path =
         output_directory.join("segment_%05d.ts");
 
-    let output = Command::new("ffmpeg")
+    let key_file_path =
+        key_directory.join(format!("{asset_id}.key"));
+
+    let key_info_path =
+        key_directory.join(format!("{asset_id}.keyinfo.tmp"));
+
+    let aes_key = random_bytes();
+    let iv = hex_encode(&random_bytes());
+    let token = create_key_token(asset_id)?;
+    let key_uri = format!(
+        "{}/keys/{}.key?token={}",
+        key_server_public_url().trim_end_matches('/'),
+        asset_id,
+        token,
+    );
+
+    fs::write(&key_file_path, &aes_key)
+        .await
+        .map_err(|error| {
+            eprintln!("Failed to write HLS key: {error}");
+
+            AppError::internal("Failed to write HLS key")
+        })?;
+
+    let key_info = format!(
+        "{key_uri}\n{}\n{iv}\n",
+        key_file_path.display(),
+    );
+
+    fs::write(&key_info_path, key_info)
+        .await
+        .map_err(|error| {
+            eprintln!("Failed to write FFmpeg key info file: {error}");
+
+            let _ = std::fs::remove_file(&key_file_path);
+
+            AppError::internal("Failed to prepare encrypted HLS conversion")
+        })?;
+
+    let output_result = Command::new("ffmpeg")
         .arg("-y")
         .arg("-i")
         .arg(input_path)
@@ -285,20 +330,30 @@ async fn convert_video_to_hls(
         .arg("6")
         .arg("-hls_playlist_type")
         .arg("vod")
+        .arg("-hls_key_info_file")
+        .arg(&key_info_path)
         .arg("-hls_segment_filename")
         .arg(&segment_path)
         .arg(&playlist_path)
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .output()
-        .await
-        .map_err(|error| {
+        .await;
+
+    let _ = fs::remove_file(&key_info_path).await;
+
+    let output = match output_result {
+        Ok(output) => output,
+        Err(error) => {
             eprintln!("Failed to start FFmpeg: {error}");
 
-            AppError::internal(
+            let _ = fs::remove_file(&key_file_path).await;
+
+            return Err(AppError::internal(
                 "Failed to start video conversion",
-            )
-        })?;
+            ));
+        }
+    };
 
     if !output.status.success() {
         let stderr =
@@ -308,6 +363,7 @@ async fn convert_video_to_hls(
 
         let _ =
             fs::remove_dir_all(output_directory).await;
+        let _ = fs::remove_file(&key_file_path).await;
 
         return Err(AppError::internal(
             "Video conversion failed",
@@ -352,6 +408,58 @@ fn public_media_url() -> String {
         .unwrap_or_else(|_| {
             "http://localhost:8080/media".to_string()
         })
+}
+
+fn key_server_public_url() -> String {
+    std::env::var("KEY_SERVER_PUBLIC_URL")
+        .unwrap_or_else(|_| "http://localhost:8090".to_string())
+}
+
+fn key_token_secret() -> String {
+    std::env::var("KEY_TOKEN_SECRET")
+        .unwrap_or_else(|_| "replace-with-a-long-random-local-secret".to_string())
+}
+
+fn key_token_ttl_seconds() -> i64 {
+    std::env::var("KEY_TOKEN_TTL_SECONDS")
+        .ok()
+        .and_then(|value| value.parse::<i64>().ok())
+        .filter(|ttl| *ttl > 0)
+        .unwrap_or(3600)
+}
+
+fn create_key_token(asset_id: &str) -> Result<String, AppError> {
+    let exp = unix_timestamp()?
+        .checked_add(key_token_ttl_seconds())
+        .ok_or_else(|| AppError::internal("Token expiration is too large"))?;
+
+    let payload = json!({
+        "asset": asset_id,
+        "exp": exp,
+    })
+    .to_string();
+
+    let payload_part = URL_SAFE_NO_PAD.encode(payload.as_bytes());
+    let mut mac = HmacSha256::new_from_slice(key_token_secret().as_bytes())
+        .map_err(|_| AppError::internal("Invalid key token secret"))?;
+
+    mac.update(payload_part.as_bytes());
+
+    let signature = mac.finalize().into_bytes();
+
+    Ok(format!(
+        "{}.{}",
+        payload_part,
+        URL_SAFE_NO_PAD.encode(signature),
+    ))
+}
+
+fn random_bytes() -> [u8; 16] {
+    rand::random::<[u8; 16]>()
+}
+
+fn hex_encode(bytes: &[u8; 16]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
 fn unix_timestamp() -> Result<i64, AppError> {

@@ -17,3 +17,9 @@ pub fn hls_directory() -> PathBuf {
 pub fn logs_directory() -> PathBuf {
     media_root().join("log")
 }
+
+pub fn keys_directory() -> PathBuf {
+    std::env::var("HLS_KEY_ROOT")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| media_root().join("keys"))
+}
