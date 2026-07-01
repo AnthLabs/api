@@ -179,11 +179,48 @@ async fn apply_and_broadcast(
     room_id: ObjectId,
     command: PlaybackCommand,
 ) {
-    match service::apply_playback_command(room_collection, room_id, command).await {
+    let command_for_log = command.clone();
+
+    match service::apply_playback_command(
+        room_collection,
+        room_id,
+        command,
+    )
+    .await
+    {
         Ok(room) => {
+            if let Err(error) = log_playback_command(
+                state,
+                room_id,
+                &command_for_log,
+            )
+            .await
+            {
+                eprintln!(
+                    "Failed to write room action log: {}",
+                    error.message,
+                );
+
+                state
+                    .room_hub
+                    .broadcast(
+                        room_id,
+                        ServerMessage::Error {
+                            code: "room_log_failed".to_string(),
+                            message: error.message,
+                        },
+                    )
+                    .await;
+
+                return;
+            }
+
             state
                 .room_hub
-                .broadcast(room_id, ServerMessage::RoomUpdated { room })
+                .broadcast(
+                    room_id,
+                    ServerMessage::RoomUpdated { room },
+                )
                 .await;
         }
 
@@ -198,6 +235,60 @@ async fn apply_and_broadcast(
                     },
                 )
                 .await;
+        }
+    }
+}
+
+async fn log_playback_command(
+    state: &AppState,
+    room_id: ObjectId,
+    command: &PlaybackCommand,
+) -> Result<(), crate::common::error::AppError> {
+    match command {
+        PlaybackCommand::ChangeVideo { video_url } => {
+            state
+                .room_logger
+                .log_video_changed(
+                    room_id,
+                    video_url,
+                )
+                .await
+        }
+
+        PlaybackCommand::Play {
+            position_seconds,
+        } => {
+            state
+                .room_logger
+                .log_play(
+                    room_id,
+                    *position_seconds,
+                )
+                .await
+        }
+
+        PlaybackCommand::Pause {
+            position_seconds,
+        } => {
+            state
+                .room_logger
+                .log_pause(
+                    room_id,
+                    *position_seconds,
+                )
+                .await
+        }
+
+        PlaybackCommand::Seek {
+            position_seconds,
+        } => {
+            state
+                .room_logger
+                .log_seek(
+                    room_id,
+                    *position_seconds,
+                )
+                .await
         }
     }
 }

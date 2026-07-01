@@ -36,6 +36,18 @@ pub async fn create_room_handler(State(state): State<AppState>) -> AppResult<Roo
     let room_collection = state.database.collection::<Room>("room");
 
     let response = service::create_room(room_collection).await?;
+    
+    let room_id = ObjectId::parse_str(&response.id)
+        .map_err(|_| {
+            AppError::internal(
+                "Created room has an invalid id",
+            )
+        })?;
+    
+    state
+        .room_logger
+        .log_room_created(room_id)
+        .await?;
 
     Ok(ApiResponse::success(response))
 }
@@ -87,6 +99,11 @@ pub async fn upload_room_video_handler(
         multipart,
     )
     .await?;
+    
+    state
+        .room_logger
+        .log_video_uploaded(room_id)
+        .await?;
 
     Ok(Json(room))
 }

@@ -1,7 +1,5 @@
 use api::{
-    modules::room::websocket::hub::RoomHub,
-    routes::{health::health_routes, room::room_routes},
-    state::{AppState, SecretStore},
+    common::room_log::RoomLogger, modules::room::websocket::hub::RoomHub, routes::{health::health_routes, room::room_routes}, state::{AppState, SecretStore}
 };
 use axum::Router;
 use dotenv::dotenv;
@@ -25,6 +23,7 @@ async fn main() {
         secret_store,
         database,
         room_hub: RoomHub::new(),
+        room_logger: RoomLogger::new(),
         started_at: std::time::Instant::now(),
     };
 

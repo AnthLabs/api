@@ -13,3 +13,7 @@ pub fn uploads_directory() -> PathBuf {
 pub fn hls_directory() -> PathBuf {
     media_root().join("hls")
 }
+
+pub fn logs_directory() -> PathBuf {
+    media_root().join("log")
+}

@@ -12,7 +12,7 @@ use super::{
     model::{Room, VideoStatus},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum PlaybackCommand {
     ChangeVideo { video_url: String },
     Play { position_seconds: f64 },

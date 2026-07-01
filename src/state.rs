@@ -1,4 +1,4 @@
-use crate::modules::room::websocket::hub::RoomHub;
+use crate::{common::room_log::RoomLogger, modules::room::websocket::hub::RoomHub};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -6,6 +6,7 @@ pub struct AppState {
     pub secret_store: SecretStore,
     pub started_at: std::time::Instant,
     pub room_hub: RoomHub,
+    pub room_logger: RoomLogger
 }
 
 #[derive(Clone)]
