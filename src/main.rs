@@ -50,6 +50,7 @@ async fn main() {
         .merge(health_routes)
         .merge(room_routes())
         .nest_service("/media/hls", ServeDir::new("/app/media/hls"))
+        .nest_service("/keys", ServeDir::new("/app/media/keys"))
         .layer(cors)
         .with_state(app_state.clone());
 
